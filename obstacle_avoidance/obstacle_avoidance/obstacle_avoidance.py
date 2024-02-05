@@ -13,7 +13,8 @@ import math
 class ObstacleAvoidance(Node):
     def __init__(self):
         super().__init__('obstacleavoidance')
-        self.sub_image_raw = self.create_subscription(Image, '/zed_camera/left/image_raw', self.image_callback, 10)
+        # self.sub_image_raw = self.create_subscription(Image, '/zed_camera/left/image_raw', self.image_callback, 10)
+        self.sub_image_raw = self.create_subscription(Image, '/camera_pkg/left/image_raw', self.image_callback, 10)
         model_path = '/home/ava/PycharmProjects/Obstacle-Avoidance-in-ROS2/obstacle_avoidance/models/dronet/model_struct.json'
         weights_path = '/home/ava/PycharmProjects/Obstacle-Avoidance-in-ROS2/obstacle_avoidance/models/dronet/best_weights.h5'
         self.pub_resized_image = self.create_publisher(Image, '/image/resized_image', 1)
@@ -29,8 +30,8 @@ class ObstacleAvoidance(Node):
         self.gamma = 0.5
 
         # define thresholds of hystersis thresholding
-        self.threshold1 = 0.95
-        self.threshold2 = 0.99
+        self.threshold1 = 0.90
+        self.threshold2 = 0.98
 
         # initialize variables
         self.s_prev = 0
@@ -41,12 +42,14 @@ class ObstacleAvoidance(Node):
         self.s_prev_backward = 0
 
         # define constants
-        self.v_max = 0.5
+        self.v_max = 0.35
+        self.v_min = 0.3
         self.s_max = math.pi / 6
         self.v_back = -0.5
-        self.s_back = -0.3
-        self.cropped_rows = 300
-        self.velocity_publisher.publish(0.5, self.v_current)
+        self.s_back = -0.4
+        # self.cropped_rows = 480
+        self.cropped_rows = 480
+        self.velocity_publisher.publish(self.v_min, 0)
 
     # After processing it publishes back the estimated depth result
     def image_callback(self, msg):
@@ -56,10 +59,11 @@ class ObstacleAvoidance(Node):
         except CvBridgeError as e:
             self.get_logger().error(f"Error converting image: {e}")
             return
-
-        resized_img = cv2.resize(image[:self.cropped_rows+1,:], (200, 200))
-        # resized_img = cv2.resize(image, (200, 200))
-        resized_msg = self.bridge.cv2_to_imgmsg(resized_img, encoding="passthrough")
+        # self.velocity_publisher.publish(self.x, 0)
+        # self.velocity_publisher.publish(self.v_max, 0)
+        cropped_img = image[:self.cropped_rows+1, :].copy()
+        resized_img = cv2.resize(cropped_img, (200, 200))
+        resized_msg = self.bridge.cv2_to_imgmsg(resized_img, encoding="bgr8")
         self.pub_resized_image.publish(resized_msg)
 
         gray_frame = cv2.cvtColor(resized_img, cv2.COLOR_BGR2GRAY)
@@ -93,7 +97,9 @@ class ObstacleAvoidance(Node):
                 self.compute_forward_velocity(steering_angle, collision_prob)
     
     def compute_forward_velocity(self, steering_angle, collision_prob):
-        self.v_current = ((1-self.alpha) * self.v_prev) + (self.alpha * (1-collision_prob) * self.v_max)
+        # self.v_current = ((1-self.alpha) * self.v_prev) + (self.alpha * (1-collision_prob) * self.v_max)
+        desired_velocity = self.v_min + (self.v_max - self.v_min) * (1 - collision_prob)
+        self.v_current = ((1 - self.alpha) * self.v_prev) + (self.alpha * desired_velocity)
         self.s_current = ((1-self.beta) * self.s_prev) + (self.beta * self.s_max * steering_angle)
     
     def compute_backward_velocity(self):
