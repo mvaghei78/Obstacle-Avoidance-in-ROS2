@@ -42,9 +42,10 @@ class ObstacleAvoidance(Node):
         self.s_prev_backward = 0
 
         # define constants
-        self.v_max = 0.35
-        self.v_min = 0.3
-        self.s_max = math.pi / 6
+        self.v_max = 0.25
+        self.v_min = 0.2
+        self.s_max_right = math.pi / 6
+        self.s_max_left = math.pi / 12
         self.v_back = -0.5
         self.s_back = -0.4
         # self.cropped_rows = 480
@@ -100,7 +101,10 @@ class ObstacleAvoidance(Node):
         # self.v_current = ((1-self.alpha) * self.v_prev) + (self.alpha * (1-collision_prob) * self.v_max)
         desired_velocity = self.v_min + (self.v_max - self.v_min) * (1 - collision_prob)
         self.v_current = ((1 - self.alpha) * self.v_prev) + (self.alpha * desired_velocity)
-        self.s_current = ((1-self.beta) * self.s_prev) + (self.beta * self.s_max * steering_angle)
+        if steering_angle > 0:
+            self.s_current = ((1-self.beta) * self.s_prev) + (self.beta * self.s_max_left * steering_angle)
+        else:
+            self.s_current = ((1-self.beta) * self.s_prev) + (self.beta * self.s_max_right * steering_angle)
     
     def compute_backward_velocity(self):
         self.s_prev_back = self.s_current
